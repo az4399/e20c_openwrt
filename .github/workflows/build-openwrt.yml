@@ -57,7 +57,8 @@ jobs:
             subversion \
             time \
             xsltproc \
-            zstd
+            zstd \
+            python3-pyelftools
 
       # ============================================================
       # 3. Clone OpenWrt
