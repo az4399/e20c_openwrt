@@ -170,7 +170,7 @@ jobs:
           echo "Memory:"
           free -h
 
-          make -j"$(nproc)" V=s
+          make -j"$(nproc)"
 
       # ============================================================
       # 13. Check firmware
