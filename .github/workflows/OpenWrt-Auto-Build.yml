@@ -108,11 +108,7 @@ jobs:
             cp ../.config .config
           fi
 
-          # 4. 一句话将根文件系统分区大小修改/扩容为 10GB (10240MB)
-          sed -i '/CONFIG_TARGET_ROOTFS_PARTSIZE/d' .config
-          echo "CONFIG_TARGET_ROOTFS_PARTSIZE=10240" >> .config
-
-          # 5. 追加你的指定内核与 eBPF 参数
+          # 4. 追加你的指定内核与 eBPF 参数
           cat << 'EOF' >> .config
           CONFIG_DEVEL=y
           CONFIG_KERNEL_DEBUG_INFO=y
