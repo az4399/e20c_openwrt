@@ -1,0 +1,51 @@
+name: Runner Disk Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  disk-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Disk space before cleanup
+        run: |
+          echo "===== Disk space BEFORE cleanup ====="
+          df -h /
+
+          echo
+          echo "===== Disk usage by top-level directories ====="
+          sudo du -xh / --max-depth=1 2>/dev/null | sort -h
+
+      - name: Clean unused software
+        run: |
+          echo "===== Cleaning unused software ====="
+
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/local/lib/node_modules
+          sudo rm -rf /usr/share/swift
+
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Disk space after cleanup
+        run: |
+          echo "===== Disk space AFTER cleanup ====="
+          df -h /
+
+          echo
+          echo "===== Disk usage by top-level directories ====="
+          sudo du -xh / --max-depth=1 2>/dev/null | sort -h
+
+      - name: Test workspace disk
+        run: |
+          echo "===== Workspace ====="
+          pwd
+          df -h "$GITHUB_WORKSPACE"
+
+          echo
+          echo "===== Workspace contents ====="
+          du -sh "$GITHUB_WORKSPACE"
