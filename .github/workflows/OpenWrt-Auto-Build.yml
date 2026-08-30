@@ -133,8 +133,15 @@ jobs:
       - name: Compile OpenWrt
         run: |
           cd openwrt
-          echo -e "$(nproc) thread compile"
-          make -j$(nproc) || make -j1 || make -j1
+          # 1. 尝试并行编译
+          make -j$(nproc) || {
+            echo "========================================="
+            echo "多线程编译失败，正在使用单线程 V=s 获取具体错误日志..."
+            echo "========================================="
+            # 2. 单线程重新编译报错的包，精确定位原因
+            make package/dae/daed/compile V=s -j1
+            exit 1
+          }
 
       - name: Prepare Release Artifacts
         id: organize
