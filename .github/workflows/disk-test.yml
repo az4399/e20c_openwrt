@@ -1,51 +1,98 @@
-name: Runner Disk Test
+name: Runner Extreme Disk Cleanup
 
 on:
   workflow_dispatch:
 
 jobs:
-  disk-test:
+  disk-cleanup:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Disk space before cleanup
+      - name: Disk before cleanup
         run: |
-          echo "===== Disk space BEFORE cleanup ====="
+          echo "===== BEFORE ====="
           df -h /
 
           echo
-          echo "===== Disk usage by top-level directories ====="
+          echo "===== TOP LEVEL ====="
           sudo du -xh / --max-depth=1 2>/dev/null | sort -h
 
-      - name: Clean unused software
+      - name: Extreme cleanup
         run: |
-          echo "===== Cleaning unused software ====="
+          set -eux
 
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf /usr/local/lib/node_modules
-          sudo rm -rf /usr/share/swift
+          echo "===== Docker cleanup ====="
+          sudo docker system prune -af --volumes || true
 
+          echo "===== APT cleanup ====="
           sudo apt-get clean
+          sudo apt-get autoclean
           sudo rm -rf /var/lib/apt/lists/*
 
-      - name: Disk space after cleanup
+          echo "===== Remove Android ====="
+          sudo rm -rf /usr/local/lib/android
+
+          echo "===== Remove .NET ====="
+          sudo rm -rf /usr/share/dotnet
+
+          echo "===== Remove GHC ====="
+          sudo rm -rf /opt/ghc
+
+          echo "===== Remove Haskell ====="
+          sudo rm -rf /opt/hostedtoolcache/haskell
+
+          echo "===== Remove Swift ====="
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /opt/swift
+
+          echo "===== Remove Boost ====="
+          sudo rm -rf /usr/local/share/boost
+
+          echo "===== Remove Node global modules ====="
+          sudo rm -rf /usr/local/lib/node_modules
+
+          echo "===== Remove CodeQL ====="
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+
+          echo "===== Remove Rust ====="
+          sudo rm -rf /opt/hostedtoolcache/Rust
+
+          echo "===== Remove cached tools ====="
+          sudo rm -rf /opt/hostedtoolcache
+
+          echo "===== Remove Azure CLI cache ====="
+          sudo rm -rf /opt/az
+
+          echo "===== Remove large preinstalled directories ====="
+          sudo rm -rf /usr/local/share/powershell
+          sudo rm -rf /usr/local/julia*
+          sudo rm -rf /usr/local/go
+
+          echo "===== Remove documentation ====="
+          sudo rm -rf /usr/share/doc/*
+          sudo rm -rf /usr/share/man/*
+          sudo rm -rf /usr/share/info/*
+
+          echo "===== Remove logs ====="
+          sudo journalctl --vacuum-time=1s || true
+          sudo rm -rf /var/log/*.gz
+          sudo rm -rf /var/log/*.[0-9]
+
+          echo "===== Remove temporary files ====="
+          sudo rm -rf /tmp/*
+          sudo rm -rf /var/tmp/*
+
+          sync
+
+      - name: Disk after cleanup
         run: |
-          echo "===== Disk space AFTER cleanup ====="
+          echo "===== AFTER ====="
           df -h /
 
           echo
-          echo "===== Disk usage by top-level directories ====="
+          echo "===== TOP LEVEL ====="
           sudo du -xh / --max-depth=1 2>/dev/null | sort -h
 
-      - name: Test workspace disk
-        run: |
-          echo "===== Workspace ====="
-          pwd
-          df -h "$GITHUB_WORKSPACE"
-
           echo
-          echo "===== Workspace contents ====="
-          du -sh "$GITHUB_WORKSPACE"
+          echo "===== WORKSPACE ====="
+          df -h "$GITHUB_WORKSPACE"
