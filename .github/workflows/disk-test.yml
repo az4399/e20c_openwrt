@@ -1,98 +1,54 @@
-name: Runner Extreme Disk Cleanup
+name: OpenWrt Free Space & Build Test
 
 on:
   workflow_dispatch:
 
 jobs:
-  disk-cleanup:
+  cleanup-and-check:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Disk before cleanup
-        run: |
-          echo "===== BEFORE ====="
-          df -h /
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
+      - name: Disk space before cleanup
+        run: |
+          echo "===== 磁盘清理前状态 ====="
+          df -h /
           echo
-          echo "===== TOP LEVEL ====="
+          echo "===== 根目录一级占用 ====="
           sudo du -xh / --max-depth=1 2>/dev/null | sort -h
 
-      - name: Extreme cleanup
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          # 移除 runner 预装工具缓存 (Go, Node, Java, Python 等)
+          tool-cache: true
+          # 移除 Android SDK & NDK
+          android: true
+          # 移除 .NET SDK
+          dotnet: true
+          # 移除 GHC / Haskell
+          haskell: true
+          # 卸载大型 apt 预装包 (Chrome, Edge, MySQL, PostgreSQL, Powershell等)
+          large-packages: true
+          # 彻底清除 Docker 镜像与底层数据
+          docker-images: true
+          # 卸载 Swap 交换分区以收回磁盘空间
+          swap: true
+
+      - name: Extra OpenWrt Cleanup
         run: |
-          set -eux
-
-          echo "===== Docker cleanup ====="
-          sudo docker system prune -af --volumes || true
-
-          echo "===== APT cleanup ====="
-          sudo apt-get clean
-          sudo apt-get autoclean
-          sudo rm -rf /var/lib/apt/lists/*
-
-          echo "===== Remove Android ====="
-          sudo rm -rf /usr/local/lib/android
-
-          echo "===== Remove .NET ====="
-          sudo rm -rf /usr/share/dotnet
-
-          echo "===== Remove GHC ====="
-          sudo rm -rf /opt/ghc
-
-          echo "===== Remove Haskell ====="
-          sudo rm -rf /opt/hostedtoolcache/haskell
-
-          echo "===== Remove Swift ====="
-          sudo rm -rf /usr/share/swift
-          sudo rm -rf /opt/swift
-
-          echo "===== Remove Boost ====="
-          sudo rm -rf /usr/local/share/boost
-
-          echo "===== Remove Node global modules ====="
-          sudo rm -rf /usr/local/lib/node_modules
-
-          echo "===== Remove CodeQL ====="
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-
-          echo "===== Remove Rust ====="
-          sudo rm -rf /opt/hostedtoolcache/Rust
-
-          echo "===== Remove cached tools ====="
-          sudo rm -rf /opt/hostedtoolcache
-
-          echo "===== Remove Azure CLI cache ====="
-          sudo rm -rf /opt/az
-
-          echo "===== Remove large preinstalled directories ====="
-          sudo rm -rf /usr/local/share/powershell
-          sudo rm -rf /usr/local/julia*
-          sudo rm -rf /usr/local/go
-
-          echo "===== Remove documentation ====="
-          sudo rm -rf /usr/share/doc/*
-          sudo rm -rf /usr/share/man/*
-          sudo rm -rf /usr/share/info/*
-
-          echo "===== Remove logs ====="
+          # 清理 jlumbroso 未完全杀干净的残余日志与文档
           sudo journalctl --vacuum-time=1s || true
-          sudo rm -rf /var/log/*.gz
-          sudo rm -rf /var/log/*.[0-9]
-
-          echo "===== Remove temporary files ====="
-          sudo rm -rf /tmp/*
-          sudo rm -rf /var/tmp/*
-
+          sudo rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/*
+          sudo rm -rf /tmp/* /var/tmp/* /var/log/*
           sync
 
-      - name: Disk after cleanup
+      - name: Disk space after cleanup
         run: |
-          echo "===== AFTER ====="
+          echo "===== 磁盘清理后状态 ====="
           df -h /
-
           echo
-          echo "===== TOP LEVEL ====="
+          echo "===== 根目录一级占用 ====="
           sudo du -xh / --max-depth=1 2>/dev/null | sort -h
-
-          echo
-          echo "===== WORKSPACE ====="
-          df -h "$GITHUB_WORKSPACE"
