@@ -1,0 +1,165 @@
+name: OpenWrt-Auto-Build
+
+on:
+  workflow_dispatch:
+
+env:
+  REPO_URL: https://github.com/openwrt/openwrt.git
+  REPO_BRANCH: main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap: true
+
+      - name: Extra Cleanup
+        run: |
+          sudo journalctl --vacuum-time=1s || true
+          sudo rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/*
+          sudo rm -rf /tmp/* /var/tmp/* /var/log/*
+          sync
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get full-upgrade -y
+          sudo apt-get install -y \
+            ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache clang cmake cpio curl \
+            device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib g++-multilib git gnutls-dev gperf haveged help2man \
+            intltool lib32gcc-s1 libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev \
+            libncurses-dev libpython3-dev libreadline-dev libssl-dev libtool libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp \
+            nano ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils python3-pyelftools \
+            python3-jsonschema qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd npm
+          sudo npm install -g pnpm
+
+      - name: Clone OpenWrt & Feeds
+        run: |
+          git clone $REPO_URL -b $REPO_BRANCH openwrt
+          cd openwrt
+          git clone https://github.com/QiuSimons/luci-app-daed package/dae
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Apply Patch & Load Custom .config
+        run: |
+          cd openwrt
+
+          # 1. 注入 Host Clang 路径到 bpf.mk
+          sed -i '/ifneq ($(CONFIG_HAS_BPF_TOOLCHAIN),)/i CLANG := /usr/bin/clang\n' include/bpf.mk
+
+          # 2. 修正 package/dae/daed/Makefile 的 Build/Compile 逻辑
+          python3 -c '
+          import re
+          path = "package/dae/daed/Makefile"
+          with open(path, "r") as f:
+              content = f.read()
+
+          new_compile = """define Build/Compile
+          \tpushd $(PKG_BUILD_DIR) ; \\
+          \texport \\
+          \t\t$(GO_GENERAL_BUILD_CONFIG_VARS) \\
+          \t\t$(GO_PKG_BUILD_CONFIG_VARS) \\
+          \t\t$(GO_PKG_BUILD_VARS) ; \\
+          \tcd dae-core ; \\
+          \texport \\
+          \t\tBPF_CLANG="/usr/bin/clang" \\
+          \t\tBPF_STRIP_FLAG="-strip=/usr/bin/llvm-strip" \\
+          \t\tBPF_CFLAGS="-I$(STAGING_DIR)/usr/include -I$(STAGING_DIR)/usr/include/bpf $(DAE_CFLAGS)" \\
+          \t\tBPF_TARGET="bpfel,bpfeb" \\
+          \t\tBPF_TRACE_TARGET="$(GO_ARCH)" ; \\
+          \tgo generate ./control/control.go || exit 1 ; \\
+          \tgo generate ./trace/trace.go || exit 1 ; \\
+          \tpopd ; \\
+          \tpushd $(PKG_BUILD_DIR) ; \\
+          \texport \\
+          \t\t$(GO_GENERAL_BUILD_CONFIG_VARS) \\
+          \t\t$(GO_PKG_BUILD_CONFIG_VARS) \\
+          \t\t$(GO_PKG_BUILD_VARS) ; \\
+          \tgo generate ./... || exit 1 ; \\
+          \tpopd ;
+          \t$(call GoPackage/Build/Compile)
+          endef"""
+
+          content = re.sub(r"define Build/Compile[\s\S]*?endef", new_compile, content)
+          with open(path, "w") as f:
+              f.write(content)
+          '
+
+          # 3. 复制项目根目录下的 .config 到 openwrt 目录
+          if [ -f "../.config" ]; then
+            cp ../.config .config
+          fi
+
+          # 4. 追加你的指定内核与 eBPF 参数
+          cat << 'EOF' >> .config
+          CONFIG_DEVEL=y
+          CONFIG_KERNEL_DEBUG_INFO=y
+          CONFIG_KERNEL_DEBUG_INFO_REDUCED=n
+          CONFIG_KERNEL_DEBUG_INFO_BTF=y
+          CONFIG_KERNEL_CGROUPS=y
+          CONFIG_KERNEL_CGROUP_BPF=y
+          CONFIG_KERNEL_BPF_EVENTS=y
+          CONFIG_BPF_TOOLCHAIN_HOST=y
+          CONFIG_KERNEL_XDP_SOCKETS=y
+          CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
+          EOF
+
+          make defconfig
+
+      - name: Download packages
+        run: |
+          cd openwrt
+          make download -j$(nproc)
+          find dl -size -1024c -exec rm -f {} \;
+
+      - name: Compile OpenWrt
+        run: |
+          cd openwrt
+          echo -e "$(nproc) thread compile"
+          make -j$(nproc) || make -j1 || make -j1 V=s
+
+      - name: Prepare Release Artifacts
+        id: organize
+        run: |
+          cd openwrt/bin/targets/*/*
+          
+          # 创建整理文件夹
+          mkdir -p release_files
+
+          # 提取固件与配置文件
+          cp -f *ext4*release_files/ 2>/dev/null || cp -f *ext4* release_files/ || true
+          cp -f *squashfs* release_files/ 2>/dev/null || true
+          cp -f config.buildinfo release_files/ 2>/dev/null || true
+          cp -f sha256sums release_files/ 2>/dev/null || true
+
+          # 生成发布标签与版本号 (格式: YYYY.MM.DD-HHMM)
+          TAG_NAME=$(date +'%Y.%m.%d-%H%M')
+          echo "RELEASE_TAG=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "FIRMWARE_PATH=$PWD/release_files" >> $GITHUB_OUTPUT
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.organize.outputs.RELEASE_TAG }}
+          name: OpenWrt Firmware ${{ steps.organize.outputs.RELEASE_TAG }}
+          body: |
+            OpenWrt 自动编译完成。
+            - 编译时间: ${{ steps.organize.outputs.RELEASE_TAG }}
+            - 包含 ext4 及 squashfs 镜像、sha256sums 校验文件与 config.buildinfo。
+          files: ${{ steps.organize.outputs.FIRMWARE_PATH }}/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
