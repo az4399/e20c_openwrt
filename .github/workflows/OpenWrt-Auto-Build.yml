@@ -155,13 +155,13 @@ jobs:
         run: |
           cd openwrt
           echo -e "$(nproc) thread compile"
-          make -j$(nproc) || {
-            echo "========================================="
-            echo "多线程编译失败，正在使用单线程 V=s 获取具体错误日志..."
-            echo "========================================="
-            make package/dae/daed/compile V=s -j1
-            exit 1
-          }
+          
+          make toolchain/install -j$(nproc)
+
+          make package/kernel/bpf-headers/compile -j$(nproc)
+          
+          make package/dae/daed/compile V=s -j1
+
 
       # 8. 整理固件产物
       - name: Prepare Release Artifacts
