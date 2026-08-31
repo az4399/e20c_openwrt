@@ -2,12 +2,6 @@ name: Build OpenWrt with daed
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-
-env:
-  PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 jobs:
   build:
@@ -27,6 +21,21 @@ jobs:
           large-packages: true
           docker-images: true
           swap-storage: true
+
+      - name: Purge Docker, System Logs, and Temp Files
+        run: |
+          # 彻底卸载 Docker 及相关组件
+          sudo apt-get remove -y --purge docker docker-engine docker.io containerd runc docker-ce docker-ce-cli containerd.io || true
+          sudo apt-get autoremove -y --purge
+          sudo rm -rf /var/lib/docker
+          sudo rm -rf /var/lib/containerd
+          sudo rm -rf /etc/docker
+
+          # 清理日志与临时文件
+          sudo rm -rf /tmp/*
+          sudo rm -rf /var/tmp/*
+          sudo rm -rf /var/log/*
+          sudo apt-get clean
 
       - name: Install System Dependencies
         run: |
@@ -102,12 +111,12 @@ jobs:
 
       - name: Load Custom .config, Inject eBPF Options & Download Dependencies
         run: |
-          # 1. 复制自定义 .config 到 openwrt 目录
+          # 拷贝仓库根目录的 .config 到 openwrt 目录
           cp .config openwrt/.config
 
           cd openwrt
 
-          # 2. 追加 eBPF / BTF 内核必要选项
+          # 追加 eBPF / BTF 内核选项
           cat << 'EOF' >> .config
           CONFIG_DEVEL=y
           CONFIG_KERNEL_DEBUG_INFO=y
@@ -121,7 +130,6 @@ jobs:
           CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
           EOF
 
-          # 3. 展开并补全依赖配置
           make defconfig
           make download -j$(nproc)
 
@@ -135,7 +143,7 @@ jobs:
           mkdir -p output_firmware
           TARGET_DIR="openwrt/bin/targets/rockchip/armv8"
 
-          # 仅提取 rockchip/armv8 目录下的 .gz 固件和 sha256sums
+          # 仅提取 openwrt/bin/targets/rockchip/armv8 目录下的 .gz 固件和 sha256sums
           cp "${TARGET_DIR}"/*.gz output_firmware/
           cp "${TARGET_DIR}"/sha256sums output_firmware/
 
