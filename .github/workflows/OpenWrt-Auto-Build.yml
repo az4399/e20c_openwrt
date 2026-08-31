@@ -11,7 +11,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Repository
@@ -100,12 +100,28 @@ jobs:
               f.write(content)
           '
 
-      - name: Load Custom .config & Download Dependencies
+      - name: Load Custom .config, Inject eBPF Options & Download Dependencies
         run: |
-          # 1. 拷贝仓库根目录的 .config 到 openwrt 目录
+          # 1. 复制自定义 .config 到 openwrt 目录
           cp .config openwrt/.config
 
           cd openwrt
+
+          # 2. 追加 eBPF / BTF 内核必要选项
+          cat << 'EOF' >> .config
+          CONFIG_DEVEL=y
+          CONFIG_KERNEL_DEBUG_INFO=y
+          CONFIG_KERNEL_DEBUG_INFO_REDUCED=n
+          CONFIG_KERNEL_DEBUG_INFO_BTF=y
+          CONFIG_KERNEL_CGROUPS=y
+          CONFIG_KERNEL_CGROUP_BPF=y
+          CONFIG_KERNEL_BPF_EVENTS=y
+          CONFIG_BPF_TOOLCHAIN_HOST=y
+          CONFIG_KERNEL_XDP_SOCKETS=y
+          CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
+          EOF
+
+          # 3. 展开并补全依赖配置
           make defconfig
           make download -j$(nproc)
 
@@ -119,7 +135,7 @@ jobs:
           mkdir -p output_firmware
           TARGET_DIR="openwrt/bin/targets/rockchip/armv8"
 
-          # 仅拷贝 .gz 格式的固件文件和 sha256sums 文件
+          # 仅提取 rockchip/armv8 目录下的 .gz 固件和 sha256sums
           cp "${TARGET_DIR}"/*.gz output_firmware/
           cp "${TARGET_DIR}"/sha256sums output_firmware/
 
