@@ -1,31 +1,22 @@
-name: OpenWrt-Auto-Build
+name: Build OpenWrt with daed
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
-# 声明全局上海时区变量
 env:
-  TZ: Asia/Shanghai
-  REPO_URL: https://github.com/openwrt/openwrt.git
-  REPO_BRANCH: main
+  PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 360 # 设置 6 小时超时保护
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 1. 设置系统时区为中国标准时间 (CST / UTC+8)
-      - name: Set System Timezone
-        run: |
-          sudo timedatectl set-timezone Asia/Shanghai
-          echo "当前系统时间与时区为："
-          date
-
-      # 2. 清理 Actions 磁盘空间
       - name: Free Disk Space
         uses: jlumbroso/free-disk-space@main
         with:
@@ -35,51 +26,43 @@ jobs:
           haskell: true
           large-packages: true
           docker-images: true
-          swap: true
+          swap-storage: true
 
-      - name: Extra Cleanup
+      - name: Install System Dependencies
         run: |
-          sudo journalctl --vacuum-time=1s || true
-          sudo rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/*
-          sudo rm -rf /tmp/* /var/tmp/* /var/log/*
-          sync
-
-      # 3. 安装依赖（补全 clang, llvm, libelf 及 Node/pnpm 环境）
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get full-upgrade -y
-          sudo apt-get install -y \
+          sudo apt update && sudo apt full-upgrade -y
+          sudo apt install -y \
             ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache clang cmake cpio curl \
             device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib g++-multilib git gnutls-dev gperf haveged help2man \
             intltool lib32gcc-s1 libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev \
             libncurses-dev libpython3-dev libreadline-dev libssl-dev libtool libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp \
             nano ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils python3-pyelftools \
             python3-jsonschema qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd npm
+
+      - name: Install pnpm
+        run: |
           sudo npm install -g pnpm
 
-      # 4. 克隆源码与 Feeds (注意带 --recursive 拉取 dae 子模块)
       - name: Clone OpenWrt & Feeds
         run: |
-          git clone $REPO_URL -b $REPO_BRANCH openwrt
+          git clone https://github.com/openwrt/openwrt.git openwrt
           cd openwrt
-          git clone --recursive https://github.com/QiuSimons/luci-app-daed package/dae
           ./scripts/feeds update -a
           ./scripts/feeds install -a
+          git clone https://github.com/QiuSimons/luci-app-daed package/dae
 
-      # 5. 修改配置、修补 daed 编译脚本与加载 .config
-      - name: Apply Patch & Load Custom .config
+      - name: Configure Timezone & Apply Patches
         run: |
           cd openwrt
 
-          # ===== 修改 OpenWrt 默认系统时区为 Asia/Shanghai (CST-8) =====
+          # 1. 设置时区为 Asia/Shanghai
           sed -i "s/set system.@system\['-1'\]\.timezone='UTC'/set system.@system\['-1'\]\.timezone='CST-8'/g" package/base-files/files/bin/config_generate
           sed -i "/set system.@system\['-1'\]\.timezone='CST-8'/a \t\tset system.@system['-1'].zonename='Asia/Shanghai'" package/base-files/files/bin/config_generate
 
-          # ===== 1. 注入 Host Clang 路径到 bpf.mk =====
+          # 2. 注入 Host Clang 路径到 bpf.mk
           sed -i '/ifneq ($(CONFIG_HAS_BPF_TOOLCHAIN),)/i CLANG := /usr/bin/clang\n' include/bpf.mk
 
-          # ===== 2. 修正 package/dae/daed/Makefile（包含前端 web 构建 + BPF 变量注入） =====
+          # 3. 修正 package/dae/daed/Makefile 的 Build/Compile 逻辑
           python3 -c '
           import re
           path = "package/dae/daed/Makefile"
@@ -107,7 +90,6 @@ jobs:
           \t\t$(GO_GENERAL_BUILD_CONFIG_VARS) \\
           \t\t$(GO_PKG_BUILD_CONFIG_VARS) \\
           \t\t$(GO_PKG_BUILD_VARS) ; \\
-          \t(cd web && pnpm install --frozen-lockfile && pnpm build) || true ; \\
           \tgo generate ./... || exit 1 ; \\
           \tpopd ;
           \t$(call GoPackage/Build/Compile)
@@ -118,84 +100,40 @@ jobs:
               f.write(content)
           '
 
-          # ===== 3. 复制项目根目录下的 .config 到 openwrt 目录 =====
-          if [ -f "../.config" ]; then
-            cp ../.config .config
-          fi
+      - name: Inject Configuration & Download Dependencies
+        run: |
+          cd openwrt
 
-          # ===== 4. 设置根分区为 2048M (2G)，避免过大导致解压文件太重 =====
-          sed -i '/CONFIG_TARGET_ROOTFS_PARTSIZE/d' .config
-          echo "CONFIG_TARGET_ROOTFS_PARTSIZE=2048" >> .config
-
-          # ===== 5. 追加指定的内核与 eBPF 参数 =====
-          sed -i '/CONFIG_BPF_TOOLCHAIN/d' .config
+          # 注入 eBPF/BTF 及内核配置
           cat << 'EOF' >> .config
           CONFIG_DEVEL=y
           CONFIG_KERNEL_DEBUG_INFO=y
           CONFIG_KERNEL_DEBUG_INFO_REDUCED=n
           CONFIG_KERNEL_DEBUG_INFO_BTF=y
+          CONFIG_KERNEL_CGROUPS=y
           CONFIG_KERNEL_CGROUP_BPF=y
           CONFIG_KERNEL_BPF_EVENTS=y
           CONFIG_BPF_TOOLCHAIN_HOST=y
           CONFIG_KERNEL_XDP_SOCKETS=y
           CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
+          CONFIG_PACKAGE_luci-app-daed=y
+          CONFIG_PACKAGE_daed=y
           EOF
 
+          # 如果项目根目录下有自定义的 .config，请取消下行注释：
+          # [ -f ../.config ] && cat ../.config >> .config
+
           make defconfig
-
-      # 6. 下载依赖包
-      - name: Download packages
-        run: |
-          cd openwrt
           make download -j$(nproc)
-          find dl -size -1024c -exec rm -f {} \;
 
-      # 7. 编译 OpenWrt (带失败防护及精准 V=s 输出)
-      - name: Compile OpenWrt
+      - name: Compile OpenWrt Firmware
         run: |
           cd openwrt
-          echo -e "$(nproc) thread compile"
-          
-          make toolchain/install -j$(nproc)
+          make -j$(nproc)
 
-          make target/linux/compile -j$(nproc)
-
-          make package/kernel/bpf-headers/compile V=s -j1
-          
-          make package/dae/daed/compile V=s -j1
-
-
-      # 8. 整理固件产物
-      - name: Prepare Release Artifacts
-        id: organize
-        run: |
-          cd openwrt/bin/targets/*/*
-          
-          # 创建整理文件夹
-          mkdir -p release_files
-
-          # 提取固件与配置文件
-          cp -f *ext4* release_files/ 2>/dev/null || true
-          cp -f *squashfs* release_files/ 2>/dev/null || true
-          cp -f config.buildinfo release_files/ 2>/dev/null || true
-          cp -f sha256sums release_files/ 2>/dev/null || true
-
-          # 生成发布标签与版本号 (使用上海时间生成: YYYY.MM.DD-HHMM)
-          TAG_NAME=$(date +'%Y.%m.%d-%H%M')
-          echo "RELEASE_TAG=$TAG_NAME" >> $GITHUB_OUTPUT
-          echo "FIRMWARE_PATH=$PWD/release_files" >> $GITHUB_OUTPUT
-
-      # 9. 发布至 GitHub Release
-      - name: Upload Release
-        uses: softprops/action-gh-release@v2
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
         with:
-          tag_name: ${{ steps.organize.outputs.RELEASE_TAG }}
-          name: OpenWrt Firmware ${{ steps.organize.outputs.RELEASE_TAG }}
-          body: |
-            OpenWrt 自动编译完成。
-            - 编译时间 (北京时间): ${{ steps.organize.outputs.RELEASE_TAG }}
-            - 根文件系统分区大小: 2048 MB (2 GB)
-            - 包含 ext4 及 squashfs 镜像、sha256sums 校验文件与 config.buildinfo。
-          files: ${{ steps.organize.outputs.FIRMWARE_PATH }}/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: OpenWrt_Firmware
+          path: openwrt/bin/targets/
