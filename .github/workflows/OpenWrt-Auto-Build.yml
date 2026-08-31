@@ -158,7 +158,9 @@ jobs:
           
           make toolchain/install -j$(nproc)
 
-          make package/kernel/bpf-headers/compile -j$(nproc)
+          make target/linux/compile -j$(nproc)
+
+          make package/kernel/bpf-headers/compile V=s -j1
           
           make package/dae/daed/compile V=s -j1
 
