@@ -112,7 +112,7 @@ jobs:
       - name: Compile OpenWrt Firmware
         run: |
           cd openwrt
-          make -j$(nproc) V=s
+          make -j$(nproc)
 
       - name: Organize Target Artifacts
         run: |
