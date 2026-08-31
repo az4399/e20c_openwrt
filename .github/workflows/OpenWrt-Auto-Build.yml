@@ -6,9 +6,12 @@ on:
     branches:
       - main
 
+env:
+  PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
@@ -97,40 +100,32 @@ jobs:
               f.write(content)
           '
 
-      - name: Inject Configuration & Download Dependencies
+      - name: Load Custom .config & Download Dependencies
         run: |
+          # 1. 拷贝仓库根目录的 .config 到 openwrt 目录
+          cp .config openwrt/.config
+
           cd openwrt
-
-          # 注入 eBPF/BTF 及内核配置
-          cat << 'EOF' >> .config
-          CONFIG_DEVEL=y
-          CONFIG_KERNEL_DEBUG_INFO=y
-          CONFIG_KERNEL_DEBUG_INFO_REDUCED=n
-          CONFIG_KERNEL_DEBUG_INFO_BTF=y
-          CONFIG_KERNEL_CGROUPS=y
-          CONFIG_KERNEL_CGROUP_BPF=y
-          CONFIG_KERNEL_BPF_EVENTS=y
-          CONFIG_BPF_TOOLCHAIN_HOST=y
-          CONFIG_KERNEL_XDP_SOCKETS=y
-          CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
-          CONFIG_PACKAGE_luci-app-daed=y
-          CONFIG_PACKAGE_daed=y
-          EOF
-
-          # 如果项目根目录下有自定义的 .config，请取消下行注释：
-          # [ -f ../.config ] && cat ../.config >> .config
-
           make defconfig
           make download -j$(nproc)
 
       - name: Compile OpenWrt Firmware
         run: |
           cd openwrt
-          make -j$(nproc)
+          make -j$(nproc) V=s
+
+      - name: Organize Target Artifacts
+        run: |
+          mkdir -p output_firmware
+          TARGET_DIR="openwrt/bin/targets/rockchip/armv8"
+
+          # 仅拷贝 .gz 格式的固件文件和 sha256sums 文件
+          cp "${TARGET_DIR}"/*.gz output_firmware/
+          cp "${TARGET_DIR}"/sha256sums output_firmware/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: OpenWrt_Firmware
-          path: openwrt/bin/targets/
+          name: OpenWrt_Rockchip_ARMv8
+          path: output_firmware/
