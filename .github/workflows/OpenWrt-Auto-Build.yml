@@ -132,9 +132,6 @@ jobs:
 
           make download -j$(nproc)
 
-      - name: Setup Tmate SSH Session
-        uses: mxschmitt/action-tmate@v3
-
       - name: Compile OpenWrt Firmware
         run: |
           cd openwrt
@@ -144,9 +141,13 @@ jobs:
           make target/linux/compile -j$(nproc)
           make package/kernel/bpf-headers/compile -j$(nproc)
 
-          make package/dae/daed/compile -j1 V=s
+          # make package/dae/daed/compile -j1 V=s
           
-          make -j$(nproc)
+          # make -j$(nproc)
+
+          
+      - name: Setup Tmate SSH Session
+        uses: mxschmitt/action-tmate@v3
 
       - name: Organize Target Artifacts
         run: |
