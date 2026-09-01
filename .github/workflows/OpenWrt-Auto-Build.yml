@@ -60,55 +60,14 @@ jobs:
           ./scripts/feeds install -a
           git clone https://github.com/QiuSimons/luci-app-daed package/dae
 
-      - name: Configure Timezone & Apply Patches
+      - name: Configure Timezone
         run: |
           cd openwrt
 
-          # 1. 设置时区为 Asia/Shanghai
+          # 设置时区为 Asia/Shanghai
           sed -i "s/set system.@system\['-1'\]\.timezone='UTC'/set system.@system\['-1'\]\.timezone='CST-8'/g" package/base-files/files/bin/config_generate
           sed -i "/set system.@system\['-1'\]\.timezone='CST-8'/a \t\tset system.@system['-1'].zonename='Asia/Shanghai'" package/base-files/files/bin/config_generate
-
-          # 2. 注入 Host Clang 路径到 bpf.mk
-          sed -i '/ifneq ($(CONFIG_HAS_BPF_TOOLCHAIN),)/i CLANG := /usr/bin/clang\n' include/bpf.mk
-
-          # 3. 修正 package/dae/daed/Makefile 的 Build/Compile 逻辑
-          python3 -c '
-          import re
-          path = "package/dae/daed/Makefile"
-          with open(path, "r") as f:
-              content = f.read()
-
-          new_compile = """define Build/Compile
-          \tpushd $(PKG_BUILD_DIR) ; \\
-          \texport \\
-          \t\t$(GO_GENERAL_BUILD_CONFIG_VARS) \\
-          \t\t$(GO_PKG_BUILD_CONFIG_VARS) \\
-          \t\t$(GO_PKG_BUILD_VARS) ; \\
-          \tcd dae-core ; \\
-          \texport \\
-          \t\tBPF_CLANG="/usr/bin/clang" \\
-          \t\tBPF_STRIP_FLAG="-strip=/usr/bin/llvm-strip" \\
-          \t\tBPF_CFLAGS="-I$(STAGING_DIR)/usr/include -I$(STAGING_DIR)/usr/include/bpf $(DAE_CFLAGS)" \\
-          \t\tBPF_TARGET="bpfel,bpfeb" \\
-          \t\tBPF_TRACE_TARGET="$(GO_ARCH)" ; \\
-          \tgo generate ./control/control.go || exit 1 ; \\
-          \tgo generate ./trace/trace.go || exit 1 ; \\
-          \tpopd ; \\
-          \tpushd $(PKG_BUILD_DIR) ; \\
-          \texport \\
-          \t\t$(GO_GENERAL_BUILD_CONFIG_VARS) \\
-          \t\t$(GO_PKG_BUILD_CONFIG_VARS) \\
-          \t\t$(GO_PKG_BUILD_VARS) ; \\
-          \tgo generate ./... || exit 1 ; \\
-          \tpopd ;
-          \t$(call GoPackage/Build/Compile)
-          endef"""
-
-          content = re.sub(r"define Build/Compile[\s\S]*?endef", new_compile, content)
-          with open(path, "w") as f:
-              f.write(content)
-          '
-
+    
       - name: Load Custom .config, Inject eBPF Options & Download Dependencies
         run: |
           # 拷贝仓库根目录的 .config 到 openwrt 目录
@@ -125,7 +84,6 @@ jobs:
           CONFIG_KERNEL_CGROUPS=y
           CONFIG_KERNEL_CGROUP_BPF=y
           CONFIG_KERNEL_BPF_EVENTS=y
-          CONFIG_BPF_TOOLCHAIN_HOST=y
           CONFIG_KERNEL_XDP_SOCKETS=y
           CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
           EOF
@@ -134,26 +92,8 @@ jobs:
 
       - name: Compile OpenWrt Firmware
         run: |
-          cd openwrt
-
-          make tools/install -j$(nproc)
-          make toolchain/install -j$(nproc)
-          make target/linux/compile -j$(nproc)
-          make package/kernel/bpf-headers/compile -j$(nproc)
-
-          # make package/dae/daed/compile -j1 V=s
-          
-          # make -j$(nproc)
-
-          
-      - name: SSH Debug
-        uses: luchihoratiu/debug-via-ssh@main
-        with:
-          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-          SSH_USER: runner
-          SSH_PASS: abcabc123
-          NGROK_REGION: ap
-          NGROK_TIMEOUT: 3600
+          cd openwrt   
+          make -j$(nproc)
 
       - name: Organize Target Artifacts
         run: |
