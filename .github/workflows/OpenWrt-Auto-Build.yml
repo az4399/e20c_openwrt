@@ -136,6 +136,9 @@ jobs:
       - name: Compile OpenWrt Firmware
         run: |
           cd openwrt
+
+          make package/feeds/packages/adguardhome/compile -j1 V=s
+          
           make -j$(nproc)
 
       - name: Organize Target Artifacts
