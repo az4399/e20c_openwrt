@@ -146,8 +146,8 @@ jobs:
           # make -j$(nproc)
 
           
-      - name: Setup Tmate SSH Session
-        uses: mxschmitt/action-tmate@v3
+      - name: SSH Debug
+        uses: lhotari/action-upterm@v1
 
       - name: Organize Target Artifacts
         run: |
