@@ -5,8 +5,8 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
-
+    # runs-on: ubuntu-24.04
+    runs-on: self-hosted
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -147,7 +147,13 @@ jobs:
 
           
       - name: SSH Debug
-        uses: lhotari/action-upterm@v1
+        uses: luchihoratiu/debug-via-ssh@main
+        with:
+          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+          SSH_USER: runner
+          SSH_PASS: abcabc123
+          NGROK_REGION: ap
+          NGROK_TIMEOUT: 3600
 
       - name: Organize Target Artifacts
         run: |
