@@ -87,6 +87,8 @@ jobs:
           CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
           EOF
 
+          make defconfig
+          
           make download -j$(nproc)
 
       - name: Compile OpenWrt Firmware
