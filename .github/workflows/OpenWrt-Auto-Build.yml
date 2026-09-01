@@ -38,7 +38,7 @@ jobs:
 
       - name: Install System Dependencies
         run: |
-          sudo apt update && sudo apt full-upgrade -y
+          sudo apt update
           sudo apt install -y \
             ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache clang cmake cpio curl \
             device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib g++-multilib git gnutls-dev gperf haveged help2man \
@@ -50,6 +50,13 @@ jobs:
       - name: Install pnpm
         run: |
           sudo npm install -g pnpm
+
+      - name: Cleanup Before Build
+        run: |
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          rm -rf ~/.cache/*
+          df -h /
 
       - name: Clone OpenWrt & Feeds
         run: |
@@ -90,6 +97,13 @@ jobs:
           make defconfig
           
           make download -j$(nproc)
+
+          # 清理下载/配置阶段产生的系统缓存
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          rm -rf ~/.cache/*
+
+          df -h /
 
       - name: Compile OpenWrt Firmware
         run: |
