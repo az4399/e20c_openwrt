@@ -132,6 +132,9 @@ jobs:
 
           make download -j$(nproc)
 
+      - name: Setup Tmate SSH Session
+        uses: mxschmitt/action-tmate@v3
+
       - name: Compile OpenWrt Firmware
         run: |
           cd openwrt
