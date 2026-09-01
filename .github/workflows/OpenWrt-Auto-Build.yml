@@ -21,21 +21,6 @@ jobs:
           docker-images: true
           swap-storage: true
 
-      - name: Purge Docker, System Logs, and Temp Files
-        run: |
-          # 彻底卸载 Docker 及相关组件
-          sudo apt-get remove -y --purge docker docker-engine docker.io containerd runc docker-ce docker-ce-cli containerd.io || true
-          sudo apt-get autoremove -y --purge
-          sudo rm -rf /var/lib/docker
-          sudo rm -rf /var/lib/containerd
-          sudo rm -rf /etc/docker
-
-          # 清理日志与临时文件
-          sudo rm -rf /tmp/*
-          sudo rm -rf /var/tmp/*
-          sudo rm -rf /var/log/*
-          sudo apt-get clean
-
       - name: Install System Dependencies
         run: |
           sudo apt update
@@ -97,13 +82,6 @@ jobs:
           make defconfig
           
           make download -j$(nproc)
-
-          # 清理下载/配置阶段产生的系统缓存
-          sudo apt-get clean
-          sudo rm -rf /var/lib/apt/lists/*
-          rm -rf ~/.cache/*
-
-          df -h /
 
       - name: Compile OpenWrt Firmware
         run: |
