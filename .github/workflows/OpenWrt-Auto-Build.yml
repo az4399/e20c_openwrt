@@ -130,7 +130,6 @@ jobs:
           CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
           EOF
 
-          make defconfig
           make download -j$(nproc)
 
       - name: Compile OpenWrt Firmware
@@ -139,8 +138,10 @@ jobs:
 
           make tools/install -j$(nproc)
           make toolchain/install -j$(nproc)
+          make target/linux/compile -j$(nproc)
+          make package/kernel/bpf-headers/compile -j$(nproc)
 
-          make package/feeds/packages/adguardhome/compile -j1 V=s
+          make package/dae/daed/compile -j1 V=s
           
           make -j$(nproc)
 
