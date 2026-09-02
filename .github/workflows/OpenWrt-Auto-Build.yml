@@ -30,6 +30,12 @@ jobs:
           ./scripts/feeds install -a
           git clone https://github.com/QiuSimons/luci-app-daed package/dae
 
+          # 修复 daed 前端依赖 lockfile 与 package.json 不一致的问题
+          sed -i 's/pnpm install ;/pnpm install --no-frozen-lockfile ;/' package/dae/daed/Makefile
+      
+          # 确认修改成功
+          grep -n "pnpm install" package/dae/daed/Makefile
+
       - name: Configure Timezone
         run: |
           cd openwrt
@@ -65,16 +71,11 @@ jobs:
       - name: Compile OpenWrt Firmware
         run: |
           cd openwrt
-          make tools/compile -j$(nproc)
-          make toolchain/compile -j$(nproc)
-          make target/compile -j$(nproc)
+          make -j$(nproc)
 
-          # make package/dae/daed/compile V=sc -j1
-
-          # make -j$(nproc)
-
-      - uses: coder/wush-action@v1.0.0
-        timeout-minutes: 60
+      # 手动调试专用
+      #- uses: coder/wush-action@v1.0.0
+      #  timeout-minutes: 60
 
       - name: Organize Target Artifacts
         run: |
