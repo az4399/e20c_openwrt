@@ -85,7 +85,13 @@ jobs:
 
       - name: Compile OpenWrt Firmware
         run: |
-          cd openwrt   
+          cd openwrt
+          make tools/compile -j$(nproc)
+          make toolchain/compile -j$(nproc)
+          make target/compile -j$(nproc)
+
+          make package/dae/daed/compile V=sc -j1
+          
           make -j$(nproc)
 
       - name: Organize Target Artifacts
