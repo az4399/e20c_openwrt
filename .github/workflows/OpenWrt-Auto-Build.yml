@@ -82,13 +82,18 @@ jobs:
           mkdir -p output_firmware
           TARGET_DIR="openwrt/bin/targets/rockchip/armv8"
 
-          # 仅提取 openwrt/bin/targets/rockchip/armv8 目录下的 .gz 固件和 sha256sums
           cp "${TARGET_DIR}"/*.gz output_firmware/
           cp "${TARGET_DIR}"/sha256sums output_firmware/
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload firmware to Release
+        uses: softprops/action-gh-release@v2
         if: success()
         with:
-          name: OpenWrt_Rockchip_ARMv8
-          path: output_firmware/
+          tag_name: build-${{ github.run_number }}
+          name: OpenWrt Build ${{ github.run_number }}
+          files: |
+            output_firmware/*.gz
+            output_firmware/sha256sums
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
