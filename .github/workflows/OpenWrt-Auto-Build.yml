@@ -69,9 +69,12 @@ jobs:
           make toolchain/compile -j$(nproc)
           make target/compile -j$(nproc)
 
-          make package/dae/daed/compile V=sc -j1
-          
-          make -j$(nproc)
+          # make package/dae/daed/compile V=sc -j1
+
+          # make -j$(nproc)
+
+      - uses: coder/wush-action@v1.0.0
+        timeout-minutes: 60
 
       - name: Organize Target Artifacts
         run: |
