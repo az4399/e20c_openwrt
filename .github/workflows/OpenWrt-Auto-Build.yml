@@ -46,7 +46,14 @@ jobs:
           # 设置时区为 Asia/Shanghai
           sed -i "s/set system.@system\['-1'\]\.timezone='UTC'/set system.@system\['-1'\]\.timezone='CST-8'/g" package/base-files/files/bin/config_generate
           sed -i "/set system.@system\['-1'\]\.timezone='CST-8'/a \t\tset system.@system['-1'].zonename='Asia/Shanghai'" package/base-files/files/bin/config_generate
-    
+
+          # 设置ntp服务器为国内服务器
+          sed -i "s#0.openwrt.pool.ntp.org#ntp.aliyun.com#; s#1.openwrt.pool.ntp.org#ntp1.aliyun.com#; s#2.openwrt.pool.ntp.org#ntp2.aliyun.com#; s#3.openwrt.pool.ntp.org#time1.cloud.tencent.com#" package/base-files/files/bin/config_generate
+
+
+          # 确认 NTP 修改成功
+          grep "add_list system.ntp.server" package/base-files/files/bin/config_generate
+          
       - name: Load Custom .config, Inject eBPF Options & Download Dependencies
         run: |
           # 拷贝仓库根目录的 .config 到 openwrt 目录
