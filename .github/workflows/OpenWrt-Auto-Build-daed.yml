@@ -1,4 +1,4 @@
-name: Build OpenWrt with daed
+name: Build OpenWrt with DAED
 
 on:
   workflow_dispatch:
@@ -99,8 +99,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: success()
         with:
-          tag_name: build-${{ github.run_number }}
-          name: OpenWrt Build ${{ github.run_number }}
+          tag_name: daed-build-${{ github.run_number }}
+          name: DAED OpenWrt Build ${{ github.run_number }}
           files: |
             output_firmware/*.gz
             output_firmware/sha256sums
