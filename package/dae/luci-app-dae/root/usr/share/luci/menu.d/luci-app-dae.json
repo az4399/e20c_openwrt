@@ -1,0 +1,10 @@
+{
+	"admin/services/dae": {
+		"title": "DAE",
+		"order": 99,
+		"action": {
+			"type": "view",
+			"path": "dae/overview"
+		}
+	}
+}

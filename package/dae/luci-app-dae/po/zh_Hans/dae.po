@@ -1,0 +1,53 @@
+msgid "DAE"
+msgstr "DAE"
+
+msgid "eBPF-based Linux high-performance transparent proxy solution."
+msgstr "基于 eBPF 的 Linux 高性能透明代理解决方案。"
+
+msgid "Service Status"
+msgstr "服务状态"
+
+msgid "Running"
+msgstr "运行中"
+
+msgid "Inactive"
+msgstr "未运行"
+
+msgid "Service Control"
+msgstr "服务控制"
+
+msgid "Starting %s..."
+msgstr "正在启动 %s..."
+
+msgid "Restarting %s..."
+msgstr "正在重启 %s..."
+
+msgid "Stopping %s..."
+msgstr "正在停止 %s..."
+
+msgid "Enabling %s..."
+msgstr "正在启用 %s..."
+
+msgid "Disabling %s..."
+msgstr "正在禁用 %s..."
+
+msgid "not installed or not found"
+msgstr "未安装或未找到"
+
+msgid "Config"
+msgstr "配置"
+
+msgid "Log"
+msgstr "日志"
+
+msgid "Log File Max Size (MB)"
+msgstr "日志文件最大大小（MB）"
+
+msgid "Clear"
+msgstr "清空"
+
+msgid "Log is empty."
+msgstr "日志为空。"
+
+msgid "Log file does not exist."
+msgstr "日志文件不存在。"
