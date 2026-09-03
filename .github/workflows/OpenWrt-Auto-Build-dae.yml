@@ -1,4 +1,4 @@
-name: Build OpenWrt with DAED
+name: Build OpenWrt with DAE
 
 on:
   workflow_dispatch:
@@ -28,16 +28,11 @@ jobs:
       - name: Clone OpenWrt & Feeds
         run: |
           git clone https://github.com/openwrt/openwrt.git openwrt
+          mkdir -p openwrt/package/dae
+          cp -a package/dae/. openwrt/package/dae/
           cd openwrt
           ./scripts/feeds update -a
           ./scripts/feeds install -a
-          git clone https://github.com/QiuSimons/luci-app-daed package/dae
-
-          # 修复 daed 前端依赖 lockfile 与 package.json 不一致的问题
-          sed -i 's/pnpm install ;/pnpm install --no-frozen-lockfile ;/' package/dae/daed/Makefile
-      
-          # 确认修改成功
-          grep -n "pnpm install" package/dae/daed/Makefile
 
       - name: Configure Timezone
         run: |
@@ -61,6 +56,14 @@ jobs:
 
           cd openwrt
 
+          # 选择 DAE 与 LuCI 前端
+          cat << 'EOF' >> .config
+          CONFIG_PACKAGE_dae=y
+          CONFIG_PACKAGE_dae-geoip=y
+          CONFIG_PACKAGE_dae-geosite=y
+          CONFIG_PACKAGE_luci-app-dae=y
+          EOF
+
           # 追加 eBPF / BTF 内核选项
           cat << 'EOF' >> .config
           CONFIG_DEVEL=y
@@ -71,6 +74,10 @@ jobs:
           CONFIG_KERNEL_CGROUP_BPF=y
           CONFIG_KERNEL_BPF_EVENTS=y
           CONFIG_KERNEL_XDP_SOCKETS=y
+          CONFIG_BPF_TOOLCHAIN_HOST=y
+          CONFIG_PACKAGE_v2ray-geoip=y
+          CONFIG_PACKAGE_v2ray-geosite=y
+          CONFIG_PACKAGE_kmod-veth=y
           CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
           EOF
 
@@ -99,8 +106,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: success()
         with:
-          tag_name: daed-build-${{ github.run_number }}
-          name: DAED OpenWrt Build ${{ github.run_number }}
+          tag_name: dae-build-${{ github.run_number }}
+          name: DAE OpenWrt Build ${{ github.run_number }}
           files: |
             output_firmware/*.gz
             output_firmware/sha256sums
